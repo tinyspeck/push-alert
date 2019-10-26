@@ -1,0 +1,33 @@
+{
+  "name": "push-alert",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Push alert for monitoring unreviewed commits",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "ncc build lib/main.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinyspeck/push-alert.git"
+  },
+  "keywords": [
+    "actions",
+    "node",
+    "setup"
+  ],
+  "author": "Shiqi Yang",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.0.0",
+    "@actions/github": "^1.1.0",
+    "request": "^2.88.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^24.0.13",
+    "@types/node": "^12.0.4",
+    "typescript": "^3.5.1",
+    "@zeit/ncc": "^0.20.5"
+  }
+}
