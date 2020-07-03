@@ -38168,11 +38168,17 @@ function requestReview(args) {
             if (!args.slackEndpoint) {
                 throw new Error('Slack notification endpoint undefined');
             }
+            const client = github.getOctokit(args.repoToken);
+            const pull_request = yield client.request("GET /repos/:owner/:repo/pulls/:pr", {
+                owner: github.context.repo.owner,
+                repo: github.context.repo.repo,
+                pr: prNum
+            });
             //notify channel
-            var github_pr_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/pulls/${prNum}`;
+            var github_pr_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/pull/${prNum}`;
             const req = request.post(args.slackEndpoint, {
                 json: {
-                    text: `Pull Request ready fore review ${github_pr_url}`,
+                    text: `Pull Request ready fore review ${github_pr_url} -- *${pull_request.data.title}*`,
                     channel: `#${args.alertChannel}`
                 }
             }, (error, res, body) => {
