@@ -1,6 +1,6 @@
 import * as core from '@actions/core';
-import * as github from '@actions/github';
-import Octokit from '@octokit/rest';
+import * as github from '@actions/github'
+import { GitHub } from '@actions/github/lib/utils';
 var request = require('request');
 
 
@@ -11,6 +11,10 @@ type Args = {
 };
 
 async function run() {
+  console.log(github.context.eventName);
+}
+
+async function runPushAlert() {
   try {
     const args = getAndValidateArgs();
     if (!args.slackEndpoint){
@@ -18,8 +22,7 @@ async function run() {
     }
     // this is requried for List branches or pull requests for a commit
     // detail: https://developer.github.com/v3/previews/#list-branches-or-pull-requests-for-a-commit
-    const octokit_options:Octokit.Options = {previews:['groot-preview']};
-    const client = new github.GitHub(args.repoToken, octokit_options);
+    const client = github.getOctokit(args.repoToken);
     //const commits = github.context.payload.commits
     if (!process.env.GITHUB_SHA){
       return;
@@ -52,7 +55,7 @@ async function run() {
 }
 
 async function verifyCommitReview(
-  client: github.GitHub,
+  client: InstanceType<typeof GitHub>,
   commit_sha: string
   ): Promise<boolean> {
     var reviewed = false;
@@ -84,6 +87,10 @@ async function verifyCommitReview(
       });
     };
   return reviewed;
+}
+
+async function notifyLabledPullRequest(){
+
 }
 
 function getAndValidateArgs(): Args {
