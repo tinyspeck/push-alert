@@ -5611,91 +5611,30 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const github = __importStar(__webpack_require__(469));
-var request = __webpack_require__(830);
+const push_alert_1 = __webpack_require__(775);
+const pr_review_notify_1 = __webpack_require__(904);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log(github.context.eventName);
-    });
-}
-function runPushAlert() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const args = getAndValidateArgs();
-            if (!args.slackEndpoint) {
-                throw new Error('Slack notification endpoint undefined');
-            }
-            // this is requried for List branches or pull requests for a commit
-            // detail: https://developer.github.com/v3/previews/#list-branches-or-pull-requests-for-a-commit
-            const client = github.getOctokit(args.repoToken);
-            //const commits = github.context.payload.commits
-            if (!process.env.GITHUB_SHA) {
-                return;
-            }
-            const commits = [process.env.GITHUB_SHA];
-            for (const commit of commits) {
-                const reviewed = yield verifyCommitReview(client, commit);
-                if (reviewed === false) {
-                    //notify channel
-                    var github_commit_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/commit/${commit}`;
-                    const req = request.post(args.slackEndpoint, {
-                        json: {
-                            text: `Unreviewed Commit from ${github_commit_url}`,
-                            channel: `#${args.alertChannel}`
-                        }
-                    }, (error, res, body) => {
-                        if (error) {
-                            console.error(error);
-                            return;
-                        }
-                        console.log(`statusCode: ${res.statusCode}`);
-                        console.log(body);
-                    });
-                }
-            }
-            ;
+        if (github.context.eventName == 'push') {
+            yield push_alert_1.runPushAlert(getAndValidateArgs());
         }
-        catch (error) {
-            core.error(error);
-            core.setFailed(error.message);
+        else if (github.context.eventName == 'pull_request') {
+            yield runPullRequest();
+        }
+        else {
+            console.log(`unsupported github event`);
         }
     });
 }
-function verifyCommitReview(client, commit_sha) {
+function runPullRequest() {
     return __awaiter(this, void 0, void 0, function* () {
-        var reviewed = false;
-        console.log("checking commit #" + commit_sha);
-        // getting all pull request associated with the commit
-        const pull_requests = yield client.request("GET /repos/:owner/:repo/commits/:commit_sha/pulls", {
-            mediaType: {
-                //the function is only available for preview on github
-                previews: ["groot"]
-            },
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
-            commit_sha: commit_sha
-        });
-        const prs = pull_requests.data;
-        // getting reviews on each PRs if one of them has approved as review then this commit is good
-        for (const pull_request of prs) {
-            console.log(commit_sha + ": checking pull request #" + pull_request.number);
-            const reviews = yield client.pulls.listReviews({
-                owner: github.context.repo.owner,
-                repo: github.context.repo.repo,
-                pull_number: pull_request.number
-            });
-            reviews.data.forEach(review => {
-                if (review.state === 'APPROVED') {
-                    console.log(commit_sha + ": approved from pull request #" + pull_request.number);
-                    reviewed = true;
-                }
-            });
+        const action_name = process.env.ACTION_NAME;
+        if ((action_name) && (action_name === 'review-request-notify')) {
+            yield pr_review_notify_1.requestReview(getAndValidateArgs());
         }
-        ;
-        return reviewed;
-    });
-}
-function notifyLabledPullRequest() {
-    return __awaiter(this, void 0, void 0, function* () {
+        else {
+            console.log(`ACTION_NAME "${action_name}" has no action defined with it`);
+        }
     });
 }
 function getAndValidateArgs() {
@@ -31487,7 +31426,124 @@ module.exports = function generate__limitLength(it, $keyword, $ruleType) {
 /***/ }),
 /* 773 */,
 /* 774 */,
-/* 775 */,
+/* 775 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.runPushAlert = void 0;
+const github = __importStar(__webpack_require__(469));
+const core = __importStar(__webpack_require__(470));
+var request = __webpack_require__(830);
+function runPushAlert(args) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!args.slackEndpoint) {
+                throw new Error('Slack notification endpoint undefined');
+            }
+            // this is requried for List branches or pull requests for a commit
+            // detail: https://developer.github.com/v3/previews/#list-branches-or-pull-requests-for-a-commit
+            const client = github.getOctokit(args.repoToken);
+            //const commits = github.context.payload.commits
+            if (!process.env.GITHUB_SHA) {
+                return;
+            }
+            const commits = [process.env.GITHUB_SHA];
+            for (const commit of commits) {
+                const reviewed = yield verifyCommitReview(client, commit);
+                if (reviewed === false) {
+                    //notify channel
+                    var github_commit_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/commit/${commit}`;
+                    const req = request.post(args.slackEndpoint, {
+                        json: {
+                            text: `Unreviewed Commit from ${github_commit_url}`,
+                            channel: `#${args.alertChannel}`
+                        }
+                    }, (error, res, body) => {
+                        if (error) {
+                            console.error(error);
+                            return;
+                        }
+                        console.log(`statusCode: ${res.statusCode}`);
+                        console.log(body);
+                    });
+                }
+            }
+            ;
+        }
+        catch (error) {
+            core.error(error);
+            core.setFailed(error.message);
+        }
+    });
+}
+exports.runPushAlert = runPushAlert;
+function verifyCommitReview(client, commit_sha) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var reviewed = false;
+        console.log("checking commit #" + commit_sha);
+        // getting all pull request associated with the commit
+        const pull_requests = yield client.request("GET /repos/:owner/:repo/commits/:commit_sha/pulls", {
+            mediaType: {
+                //the function is only available for preview on github
+                previews: ["groot"]
+            },
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            commit_sha: commit_sha
+        });
+        const prs = pull_requests.data;
+        // getting reviews on each PRs if one of them has approved as review then this commit is good
+        for (const pull_request of prs) {
+            console.log(commit_sha + ": checking pull request #" + pull_request.number);
+            const reviews = yield client.pulls.listReviews({
+                owner: github.context.repo.owner,
+                repo: github.context.repo.repo,
+                pull_number: pull_request.number
+            });
+            reviews.data.forEach(review => {
+                if (review.state === 'APPROVED') {
+                    console.log(commit_sha + ": approved from pull request #" + pull_request.number);
+                    reviewed = true;
+                }
+            });
+        }
+        ;
+        return reviewed;
+    });
+}
+
+
+/***/ }),
 /* 776 */
 /***/ (function(module) {
 
@@ -38065,7 +38121,79 @@ module.exports = function generate_anyOf(it, $keyword, $ruleType) {
 
 /***/ }),
 /* 903 */,
-/* 904 */,
+/* 904 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.requestReview = void 0;
+const github = __importStar(__webpack_require__(469));
+const core = __importStar(__webpack_require__(470));
+var request = __webpack_require__(830);
+const fs = __webpack_require__(747);
+const ev = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+const prNum = ev.pull_request.number;
+function requestReview(args) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!args.slackEndpoint) {
+                throw new Error('Slack notification endpoint undefined');
+            }
+            //notify channel
+            var github_pr_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/pulls/${prNum}`;
+            const req = request.post(args.slackEndpoint, {
+                json: {
+                    text: `Pull Request ready fore review ${github_pr_url}`,
+                    channel: `#${args.alertChannel}`
+                }
+            }, (error, res, body) => {
+                if (error) {
+                    console.error(error);
+                    return;
+                }
+                console.log(`statusCode: ${res.statusCode}`);
+                console.log(body);
+            });
+        }
+        catch (error) {
+            core.error(error);
+            core.setFailed(error.message);
+        }
+    });
+}
+exports.requestReview = requestReview;
+
+
+/***/ }),
 /* 905 */,
 /* 906 */,
 /* 907 */,
