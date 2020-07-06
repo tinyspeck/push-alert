@@ -8,34 +8,29 @@ export async function runPushAlert(args) {
       if (!args.slackEndpoint){
         throw new Error('Slack notification endpoint undefined');
       }
-      // this is requried for List branches or pull requests for a commit
-      // detail: https://developer.github.com/v3/previews/#list-branches-or-pull-requests-for-a-commit
       const client = github.getOctokit(args.repoToken);
-      //const commits = github.context.payload.commits
       if (!process.env.GITHUB_SHA){
         return;
       }
-      const commits = [process.env.GITHUB_SHA];
-      for (const commit of commits) {
-        const reviewed = await verifyCommitReview(client, commit);
-        if (reviewed === false){
-          //notify channel
-          var github_commit_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/commit/${commit}`;
-          const req = request.post(args.slackEndpoint,{
-            json:{
-              text:`Unreviewed Commit from ${github_commit_url}`,
-              channel: `#${args.alertChannel}`
-            }
-          }, (error, res, body) => {
-            if (error) {
-              console.error(error)
-              return
-            }
-            console.log(`statusCode: ${res.statusCode}`)
-            console.log(body)
-          });
-        }
-      };
+      const commit = process.env.GITHUB_SHA;
+      const reviewed = await verifyCommitReview(client, commit);
+      if (reviewed === false){
+        //notify channel
+        var github_commit_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/commit/${commit}`;
+        const req = request.post(args.slackEndpoint,{
+          json:{
+            text:`Unreviewed Commit from ${github_commit_url}`,
+            channel: `#${args.alertChannel}`
+          }
+        }, (error, res, body) => {
+          if (error) {
+            console.error(error)
+            return
+          }
+          console.log(`statusCode: ${res.statusCode}`)
+          console.log(body)
+        });
+      }
     } catch (error) {
       core.error(error);
       core.setFailed(error.message);
@@ -52,6 +47,7 @@ export async function runPushAlert(args) {
       const pull_requests = await client.request("GET /repos/:owner/:repo/commits/:commit_sha/pulls",{
         mediaType: {
           //the function is only available for preview on github
+          // detail: https://developer.github.com/v3/previews/#list-branches-or-pull-requests-for-a-commit
           previews: ["groot"]
         },
         owner: github.context.repo.owner,
