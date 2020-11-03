@@ -23,7 +23,7 @@ export async function requestReview(args) {
       var github_pr_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/pull/${prNum}`;
       const req = request.post(args.slackEndpoint,{
         json:{
-          text:`Pull Request ready fore review ${github_pr_url} -- *${pull_request.data.title}*`,
+          text:`Pull Request ready for review ${github_pr_url} -- *${pull_request.data.title}*`,
           channel: `#${args.alertChannel}`
         }
       }, (error, res, body) => {
