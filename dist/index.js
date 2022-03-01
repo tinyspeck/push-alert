@@ -38224,8 +38224,6 @@ const core = __importStar(__webpack_require__(470));
 var request = __webpack_require__(830);
 const fs = __webpack_require__(747);
 const ev = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-console.error(JSON.stringify(ev));
-const prNum = ev.pull_request.number;
 function requestReview(args) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -38233,6 +38231,7 @@ function requestReview(args) {
                 throw new Error('Slack notification endpoint undefined');
             }
             const client = github.getOctokit(args.repoToken);
+            const prNum = ev.pull_request.number;
             const pull_request = yield client.request("GET /repos/:owner/:repo/pulls/:pr", {
                 owner: github.context.repo.owner,
                 repo: github.context.repo.repo,

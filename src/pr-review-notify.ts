@@ -6,8 +6,6 @@ const fs = require('fs');
 const ev = JSON.parse(
   fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')
 );
-console.error(JSON.stringify(ev));
-const prNum = ev.pull_request.number;
 
 export async function requestReview(args) {
     try {
@@ -15,6 +13,7 @@ export async function requestReview(args) {
         throw new Error('Slack notification endpoint undefined');
       }
       const client = github.getOctokit(args.repoToken);
+      const prNum = ev.pull_request.number;
       const pull_request = await client.request("GET /repos/:owner/:repo/pulls/:pr",{
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
