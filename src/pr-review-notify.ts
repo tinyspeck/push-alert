@@ -35,7 +35,12 @@ export async function requestReview(args) {
         console.log(body)
       });
     }catch (error) {
-      core.error(error);
-      core.setFailed(error.message);
+      if (error instanceof Error) {
+        core.error(error);
+        core.setFailed(error.message);
+      } else {
+        core.error(String(error));
+        core.setFailed(String(error));
+      }
     }
 }
