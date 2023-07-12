@@ -15,11 +15,26 @@ export async function runPushAlert(args) {
       const commit = process.env.GITHUB_SHA;
       const reviewed = await verifyCommitReview(client, commit);
       if (reviewed === false){
+        const commitDetails = await client.git.getCommit({
+          repo: github.context.repo.repo,
+          owner: github.context.repo.owner,
+          commit_sha: commit,
+        });
+
         //notify channel
         var github_commit_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/commit/${commit}`;
+        const message = `:red-c: @channel Unreviewed Commit in \`${github.context.repo.owner}/${github.context.repo.repo}\`\n` +
+          '\n' +
+          `*Commit:* <${github_commit_url}|${commit.slice(0, 6)}>\n` +
+          `*Author:* <https://github.com/${encodeURIComponent(commitDetails.data.author.name)}|${safeSlackString(commitDetails.data.author.name)}>\n` +
+          `*Committer:* <https://github.com/${encodeURIComponent(commitDetails.data.committer.name)}|${safeSlackString(commitDetails.data.committer.name)}>\n` +
+          '*Message:*\n' +
+          '```\n'
+          safeSlackString(commitDetails.data.message) +
+          '\n```';
         const req = request.post(args.slackEndpoint,{
           json:{
-            text:`Unreviewed Commit from ${github_commit_url}`,
+            text: message,
             channel: `#${args.alertChannel}`
           }
         }, (error, res, body) => {
@@ -40,6 +55,10 @@ export async function runPushAlert(args) {
         core.setFailed(String(error));
       }
     }
+  }
+
+  function safeSlackString(s: string): string {
+    return s.replace(/\&/g, '&amp;').replace(/\</g, '&lt;').replace(/\>/g, '&gt;');
   }
 
   async function verifyCommitReview(
