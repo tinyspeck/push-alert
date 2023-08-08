@@ -32850,21 +32850,22 @@ function runPushAlert(args) {
             const commit = process.env.GITHUB_SHA;
             const reviewed = yield verifyCommitReview(client, commit);
             if (reviewed === false) {
-                const commitDetails = yield client.git.getCommit({
+                const commitDetails = yield client.repos.getCommit({
                     repo: github.context.repo.repo,
                     owner: github.context.repo.owner,
-                    commit_sha: commit,
+                    ref: commit,
                 });
                 //notify channel
                 var github_commit_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/commit/${commit}`;
-                const message = `:red-c: @channel Unreviewed Commit in \`${github.context.repo.owner}/${github.context.repo.repo}\`\n` +
+                const message = `:red-c: <!channel> Unreviewed Commit in \`${github.context.repo.owner}/${github.context.repo.repo}\`\n` +
                     '\n' +
                     `*Commit:* <${github_commit_url}|${commit.slice(0, 6)}>\n` +
-                    `*Author:* <https://github.com/${encodeURIComponent(commitDetails.data.author.name)}|${safeSlackString(commitDetails.data.author.name)}>\n` +
-                    `*Committer:* <https://github.com/${encodeURIComponent(commitDetails.data.committer.name)}|${safeSlackString(commitDetails.data.committer.name)}>\n` +
+                    `*Author:* <https://github.com/${encodeURIComponent(commitDetails.data.author.login)}|${safeSlackString(commitDetails.data.commit.author.name)}>\n` +
+                    `*Committer:* <https://github.com/${encodeURIComponent(commitDetails.data.committer.login)}|${safeSlackString(commitDetails.data.commit.committer.name)}>\n` +
+                    `*Verified Commit:* ${commitDetails.data.commit.verification.verified ? ':check:' : ':red-bang:'} _${safeSlackString(commitDetails.data.commit.verification.reason)}_\n` +
                     '*Message:*\n' +
-                    '```\n';
-                safeSlackString(commitDetails.data.message) +
+                    '```\n' +
+                    safeSlackString(commitDetails.data.commit.message) +
                     '\n```';
                 const req = request.post(args.slackEndpoint, {
                     json: {
