@@ -1,16 +1,16 @@
 name: 'Push Alert'
-description: 'Alert When push without review'
+description: 'Send a Slack alert when an unreviewed commit is pushed to master'
 author: 'Shiqi Yang'
 inputs:
   repo-token:
-    description: 'Token for the repo. Can be passed in using {{ secrets.GITHUB_TOKEN }}'
+    description: 'Token for the repo. Can be passed in using {{ secrets.GITHUB_TOKEN }}.'
     required: true
   slack-endpoint:
-    description: 'slack notification endpoint, can be passed in using {{ secrets.SLACK_NOTIFY_ENDPOINT }}'
+    description: 'Slack notification endpoint. Can be passed in using {{ secrets.SLACK_NOTIFY_ENDPOINT }}.'
     required: true
   slack-channel:
-    description: 'slack channel name to notify'
+    description: 'Slack channel name to notify.'
     required: true
 runs:
-  using: 'node12'
+  using: 'node24'
   main: 'dist/index.js'
