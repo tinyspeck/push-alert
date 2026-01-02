@@ -131,3 +131,4 @@ lib
 *.swp
 
 .DS_Store
+.yarn/install-state.gz
