@@ -20,7 +20,7 @@
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^2.0.1",
-    "@actions/github": "^6.0.1",
+    "@actions/github": "^9.0.0",
     "@octokit/rest": "^22.0.1",
     "@tsconfig/node24": "^24.0.3"
   },
