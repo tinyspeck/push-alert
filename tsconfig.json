@@ -4,8 +4,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "es2022",
-    "outDir": "./dist",
-    "rootDir": "./src"
+    "types": ["node"],
+    "noEmit": true
   },
   "include": ["src"]
 }
