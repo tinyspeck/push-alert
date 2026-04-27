@@ -8,77 +8,84 @@ import { Args } from './main';
  * commit was added to the repository.
  */
 export async function runPushAlert(args: Args) {
-  try {
-    if (!args.slackEndpoint) {
-      throw new Error('Slack notification endpoint undefined');
-    }
-    const client = github.getOctokit(args.repoToken);
-    if (!process.env.GITHUB_SHA) {
-      return;
-    }
-    const commit = process.env.GITHUB_SHA;
-    const reviewed = await verifyCommitReview(client, commit);
-    if (reviewed === false) {
-      const commitDetails = await client.rest.repos.getCommit({
-        repo: github.context.repo.repo,
-        owner: github.context.repo.owner,
-        ref: commit,
-      });
+  if (!args.slackEndpoint) {
+    throw new Error('Slack notification endpoint undefined');
+  }
+  const client = github.getOctokit(args.repoToken);
+  if (!process.env.GITHUB_SHA) {
+    return;
+  }
+  const commit = process.env.GITHUB_SHA;
+  const repo = `${github.context.repo.owner}/${github.context.repo.repo}`;
+  const runUrl = `${process.env.GITHUB_SERVER_URL}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
 
-      // notify channel
-      const github_commit_url = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/commit/${commit}`;
-      const message =
-        `:red-c: <!channel> Unreviewed Commit in \`${github.context.repo.owner}/${github.context.repo.repo}\`\n` +
-        '\n' +
-        `*Commit:* <${github_commit_url}|${commit.slice(0, 6)}>\n` +
-        `*Author:* <https://github.com/${encodeURIComponent(
-          commitDetails.data.author?.login ?? 'unknown'
-        )}|${safeSlackString(
-          commitDetails.data.commit.author?.name ?? 'unknown'
-        )}>\n` +
-        `*Committer:* <https://github.com/${encodeURIComponent(
-          commitDetails.data.committer?.login ?? 'unknown'
-        )}|${safeSlackString(
-          commitDetails.data.commit.committer?.name ?? 'unknown'
-        )}>\n` +
-        `*Verified Commit:* ${
-          commitDetails.data.commit.verification?.verified
-            ? ':check:'
-            : ':red-bang:'
-        } _${safeSlackString(
-          commitDetails.data.commit.verification?.reason ?? 'unknown'
-        )}_\n` +
-        '*Message:*\n' +
-        '```\n' +
-        safeSlackString(commitDetails.data.commit.message) +
-        '\n```';
-      const response = await fetch(args.slackEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: message,
-          channel: `#${args.alertChannel}`,
-        }),
-      });
-
-      if (!response.ok) {
-        console.error(`HTTP error! status: ${response.status}`);
-      } else {
-        console.log(`statusCode: ${response.status}`);
-        const body = await response.text();
-        console.log(body);
-      }
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      core.error(error);
-      core.setFailed(error.message);
+  const postToSlack = async (text: string) => {
+    const response = await fetch(args.slackEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, channel: `#${args.alertChannel}` }),
+    });
+    if (!response.ok) {
+      console.error(`HTTP error! status: ${response.status} — ${runUrl}`);
     } else {
-      core.error(String(error));
-      core.setFailed(String(error));
+      console.log(`statusCode: ${response.status}`);
+      const body = await response.text();
+      console.log(body);
     }
+  };
+
+  let reviewed: boolean;
+  try {
+    reviewed = await verifyCommitReview(client, commit);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    core.warning(`push-alert failed (non-fatal): ${message}`);
+    try {
+      await postToSlack(
+        `:warning: push-alert failed for \`${repo}\` commit \`${commit.slice(0, 6)}\`\n` +
+        `*Error:* ${safeSlackString(message)}\n` +
+        `*Job:* <${runUrl}|View run>`,
+      );
+    } catch {
+      // best-effort
+    }
+    return;
+  }
+
+  if (!reviewed) {
+    const commitDetails = await client.rest.repos.getCommit({
+      repo: github.context.repo.repo,
+      owner: github.context.repo.owner,
+      ref: commit,
+    });
+
+    const github_commit_url = `https://github.com/${repo}/commit/${commit}`;
+    await postToSlack(
+      `:red-c: <!channel> Unreviewed Commit in \`${repo}\`\n` +
+      '\n' +
+      `*Commit:* <${github_commit_url}|${commit.slice(0, 6)}>\n` +
+      `*Author:* <https://github.com/${encodeURIComponent(
+        commitDetails.data.author?.login ?? 'unknown'
+      )}|${safeSlackString(
+        commitDetails.data.commit.author?.name ?? 'unknown'
+      )}>\n` +
+      `*Committer:* <https://github.com/${encodeURIComponent(
+        commitDetails.data.committer?.login ?? 'unknown'
+      )}|${safeSlackString(
+        commitDetails.data.commit.committer?.name ?? 'unknown'
+      )}>\n` +
+      `*Verified Commit:* ${
+        commitDetails.data.commit.verification?.verified
+          ? ':check:'
+          : ':red-bang:'
+      } _${safeSlackString(
+        commitDetails.data.commit.verification?.reason ?? 'unknown'
+      )}_\n` +
+      '*Message:*\n' +
+      '```\n' +
+      safeSlackString(commitDetails.data.commit.message) +
+      '\n```',
+    );
   }
 }
 
@@ -93,45 +100,54 @@ async function verifyCommitReview(
   client: InstanceType<typeof GitHub>,
   commit_sha: string
 ): Promise<boolean> {
-  var reviewed = false;
-  console.log('Checking commit ' + commit_sha);
-  // getting all pull requests associated with the commit
-  const pull_requests = await client.request(
-    'GET /repos/:owner/:repo/commits/:commit_sha/pulls',
+  console.log(`Checking commit ${commit_sha}`);
+  console.log(`gh api graphql -f query='{ repository(owner: "${github.context.repo.owner}", name: "${github.context.repo.repo}") { object(oid: "${commit_sha}") { ... on Commit { associatedPullRequests(first: 10) { nodes { number title reviews(first: 1, states: APPROVED) { totalCount } } } } } } }'`);
+
+  const { repository } = await client.graphql<{
+    repository: {
+      object: {
+        associatedPullRequests: {
+          nodes: Array<{
+            number: number;
+            reviews: { totalCount: number };
+          }>;
+        };
+      } | null;
+    };
+  }>(
+    `query ($owner: String!, $repo: String!, $oid: GitObjectID!) {
+      repository(owner: $owner, name: $repo) {
+        object(oid: $oid) {
+          ... on Commit {
+            associatedPullRequests(first: 10) {
+              nodes {
+                number
+                reviews(first: 1, states: APPROVED) {
+                  totalCount
+                }
+              }
+            }
+          }
+        }
+      }
+    }`,
     {
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
-      commit_sha: commit_sha,
+      oid: commit_sha,
     }
   );
-  const prs = pull_requests.data;
-  if (!Array.isArray(prs)) {
-    console.log(
-      `Expected array of PRs from Octokit, got ${JSON.stringify(prs)} instead.`
-    );
-    return false;
-  }
-  // getting reviews on each PRs if one of them has approved as review then this commit is good
+
+  const prs = repository.object?.associatedPullRequests.nodes ?? [];
   console.log(`Found ${prs.length} PR(s) for commit ${commit_sha}`);
-  for (const pull_request of prs) {
-    console.log(commit_sha + ': checking pull request #' + pull_request.number);
-    const reviews = await client.rest.pulls.listReviews({
-      owner: github.context.repo.owner,
-      repo: github.context.repo.repo,
-      pull_number: pull_request.number,
-    });
-    reviews.data.forEach((review) => {
-      if (review.state === 'APPROVED') {
-        console.log(
-          commit_sha + ': approved from pull request #' + pull_request.number
-        );
-        reviewed = true;
-      } else {
-        console.log(
-          commit_sha + ': not approved in pull request #' + pull_request.number
-        );
-      }
-    });
+
+  for (const pr of prs) {
+    if (pr.reviews.totalCount > 0) {
+      console.log(`${commit_sha}: approved from pull request #${pr.number}`);
+      return true;
+    }
+    console.log(`${commit_sha}: not approved in pull request #${pr.number}`);
   }
-  return reviewed;
+
+  return false;
 }
